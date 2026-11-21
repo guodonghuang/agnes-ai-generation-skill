@@ -19,6 +19,8 @@ BASE_URL = "https://apihub.agnes-ai.com"
 TEXT_MODEL = "agnes-2.5-flash"
 IMAGE_MODEL = "agnes-image-2.5-flash"
 VIDEO_MODEL = "agnes-video-2.5-flash"
+VIDEO_SIZE = "720P"
+VIDEO_SECONDS = 5
 SIZE_RE = re.compile(r"^[1-9]\d*x[1-9]\d*$")
 
 
@@ -327,27 +329,42 @@ def video_payload(args: argparse.Namespace) -> dict[str, Any]:
         "model": VIDEO_MODEL,
         "prompt": prompt,
     }
-    for name in (
-        "height",
-        "width",
-        "num_frames",
-        "frame_rate",
-        "num_inference_steps",
-        "seed",
-        "negative_prompt",
-    ):
-        value = getattr(args, name)
-        if value is not None:
-            payload[name] = value
-    if args.mode:
-        payload["mode"] = args.mode
-    if args.image:
-        if len(args.image) == 1 and args.mode != "keyframes":
-            payload["image"] = args.image[0]
-        else:
-            payload["extra_body"] = {"image": args.image}
-            if args.mode:
-                payload["extra_body"]["mode"] = args.mode
+    if VIDEO_MODEL == "agnes-video-2.5-flash":
+        payload["size"] = VIDEO_SIZE
+        payload["seconds"] = str(VIDEO_SECONDS)
+        payload["aspect_ratio"] = "16:9"
+        payload["mode"] = "text"
+        if args.negative_prompt:
+            payload["negative_prompt"] = args.negative_prompt
+        if args.seed is not None:
+            payload["seed"] = args.seed
+        if args.image:
+            if len(args.image) == 1:
+                payload["reference"] = {"images": [args.image[0]]}
+            else:
+                payload["reference"] = {"images": args.image[:5]}
+    else:
+        for name in (
+            "height",
+            "width",
+            "num_frames",
+            "frame_rate",
+            "num_inference_steps",
+            "seed",
+            "negative_prompt",
+        ):
+            value = getattr(args, name)
+            if value is not None:
+                payload[name] = value
+        if args.mode:
+            payload["mode"] = args.mode
+        if args.image:
+            if len(args.image) == 1 and args.mode != "keyframes":
+                payload["image"] = args.image[0]
+            else:
+                payload["extra_body"] = {"image": args.image}
+                if args.mode:
+                    payload["extra_body"]["mode"] = args.mode
     return payload
 
 
@@ -580,14 +597,20 @@ def cmd_smoke_test(args: argparse.Namespace) -> None:
     video_common = {
         "model": VIDEO_MODEL,
     }
-    for key, value in (
-        ("height", args.video_height),
-        ("width", args.video_width),
-        ("num_frames", args.video_num_frames),
-        ("frame_rate", args.video_frame_rate),
-    ):
-        if value is not None:
-            video_common[key] = value
+    if VIDEO_MODEL == "agnes-video-2.5-flash":
+        video_common["size"] = VIDEO_SIZE
+        video_common["seconds"] = str(VIDEO_SECONDS)
+        video_common["aspect_ratio"] = "16:9"
+        video_common["mode"] = "text"
+    else:
+        for key, value in (
+            ("height", args.video_height),
+            ("width", args.video_width),
+            ("num_frames", args.video_num_frames),
+            ("frame_rate", args.video_frame_rate),
+        ):
+            if value is not None:
+                video_common[key] = value
     video_results = {}
     if "text-to-video" in selected_cases:
         video_results["text_to_video"] = create_video_case(
@@ -730,3 +753,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
